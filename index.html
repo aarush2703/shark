@@ -1,0 +1,500 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090e;--bg2:#0f1018;--bg3:#16171f;--bg4:#1e1f28;--bg5:#25262f;
+  --bd:#2a2b35;--bd2:#383944;
+  --text:#ededf0;--text2:#9899a8;--text3:#55566a;
+  --cyan:#5ce0c0;--cdim:rgba(92,224,192,0.1);
+  --amber:#fbbf24;--adim:rgba(251,191,36,0.1);
+  --green:#4ade80;--gdim:rgba(74,222,128,0.1);
+  --red:#ff6b6b;--rdim:rgba(255,107,107,0.1);
+  --r:12px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px}
+.serif{font-family:'Playfair Display',serif}
+.tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.tc{background:var(--cdim);color:var(--cyan);border:1px solid rgba(92,224,192,0.2)}
+.ta{background:var(--adim);color:var(--amber);border:1px solid rgba(251,191,36,0.2)}
+.tg{background:var(--gdim);color:var(--green);border:1px solid rgba(74,222,128,0.2)}
+.tr{background:var(--rdim);color:var(--red);border:1px solid rgba(255,107,107,0.2)}
+.card{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--r)}
+.fade{animation:fu .4s ease both}
+@keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+
+<div id="root" style="background:var(--bg);border-radius:16px;overflow:hidden;min-height:500px"></div>
+
+<script>
+const root=document.getElementById('root');
+let screen='intro', round=0, score=100, history=[], answered=false, raf=null;
+
+const ROUNDS=[
+  {
+    title:"Verletzung & Hitze",
+    situation:"Das Wasser brennt. 24°C statt 18°C — dein Energiebedarf steigt. Du hast eine Wunde an der Flanke, die Beute ist verschwunden. Nahe der Koralle schweben Putzerfische.",
+    scene:'warm_injured',
+    abiotic:{label:"24°C Wassertemperatur",text:"Erhöhter Metabolismus — mehr Energiebedarf, Beutetiere weichen in kühlere Tiefen aus."},
+    biotic:{label:"Putzerfische (Mutualismus)",text:"Putzerfische entfernen Parasiten und Bakterien. Beide Seiten profitieren — klassischer Mutualismus."},
+    options:[
+      {text:"Zu den Putzerfischen schwimmen",bio:"Wunde heilt schneller, Infektionsrisiko sinkt, Energie gespart.",q:1},
+      {text:"Putzerfische aggressiv attackieren",bio:"Energieverlust, Symbiose zerstört, Infektionsrisiko steigt stark.",q:-1},
+      {text:"Sofort in kühlere Tiefen abtauchen",bio:"Richtiger Instinkt, aber offene Wunde ohne Reinigung bleibt Risiko.",q:0}
+    ],
+    cons:{0:{t:'good',txt:'Die Putzerfische arbeiten sich durch dein Gewebe. Schmerz lässt nach, Parasiten entfernt. Du bist bereit für die Jagd.'},1:{t:'bad',txt:'Die Putzerfische fliehen. Die Wunde rötet sich. Bakterien vermehren sich im Warmwasser rasant.'},2:{t:'neutral',txt:'Kühler, besser. Aber die unbehandelte Wunde schmerzt weiter und kostet dich Energie.'}}
+  },
+  {
+    title:"Jagdstrategie",
+    situation:"30 Meter Tiefe, 19°C. Ideal für deinen Stoffwechsel. Eine schwache Robbe zieht vorbei. Ein Buckelwal in der Ferne. Ein Fischschwarm um die Robbe.",
+    scene:'hunt',
+    abiotic:{label:"19°C — optimale Tiefe",text:"Kühles Wasser steigert deine Effizienz. Du bist schneller und präziser als in der Wärme."},
+    biotic:{label:"Prädation & Selektion",text:"Schwache Beute kostet wenig Energie. Wale sind Konkurrenz — Konfrontation bringt Risiko ohne Gewinn."},
+    options:[
+      {text:"Die schwache Robbe angreifen",bio:"Energieeffizient — maximaler Gewinn bei minimalem Aufwand.",q:1},
+      {text:"Den Buckelwal konfrontieren",bio:"Wale sind zu groß — Verletzungsrisiko, kein Nahrungsgewinn.",q:-1},
+      {text:"Den Fischschwarm jagen",bio:"Kleine Fische: zu wenig Kalorien für deinen Körper, zu viel Aufwand.",q:0}
+    ],
+    cons:{0:{t:'good',txt:'Angriff von unten. Maximaler Kaloriengewinn, minimaler Aufwand. Das Ökosystem reguliert sich.'},1:{t:'bad',txt:'Der Wal schlägt mit der Flosse. Du wirst zurückgeschleudert — verletzt, erschöpft, hungrig.'},2:{t:'neutral',txt:'Viele kleine Happen. Der Hunger ist leicht gedämpft, aber nicht gestillt.'}}
+  },
+  {
+    title:"Nachtjagd",
+    situation:"Stockdunkle Nacht. Deine Lorenzini-Ampullen zeigen drei Ziele: eine verletzte Makrele, ein Rochen am Sand, eine Meeresschildkröte an der Oberfläche.",
+    scene:'night',
+    abiotic:{label:"Dunkelheit & Sensorik",text:"Ohne Licht dominiert der Elektrosinn. Deine Lorenzini-Ampullen detektieren Bioelektrizität der Beute."},
+    biotic:{label:"Schildkröten & Seegras",text:"Schildkröten stabilisieren Seegraswiesen. Ihr Verlust destabilisiert das Ökosystem — und schadet dir langfristig."},
+    options:[
+      {text:"Verletzte Makrele mit Elektrosinn verfolgen",bio:"Gezielte Jagd entfernt geschwächtes Tier — stärkt den Bestand.",q:1},
+      {text:"Schildkröte an der Oberfläche angreifen",bio:"Ökologisch wichtige Art — ihr Verlust destabilisiert dein Habitat.",q:-1},
+      {text:"Rochen am Sandboden aufwühlen",bio:"Möglich, aber Stachelvergiftungsrisiko und wenig Energiegewinn.",q:0}
+    ],
+    cons:{0:{t:'good',txt:'Die Ampullen führen dich perfekt. Ein Predator, der das Ökosystem stärkt statt schwächt.'},1:{t:'bad',txt:'Die Schildkröte entkommt. Energie verschwendet, wichtiges Tier gestört.'},2:{t:'neutral',txt:'Der Rochen flieht in eine Spalte. Kein Essen, etwas Aufwand — erschöpft aber noch funktionsfähig.'}}
+  },
+  {
+    title:"Das Fischerboot",
+    situation:"Ein Fischerboot über dir. Netz im Wasser. Ein Thunfisch zappelt gefangen. Ein Delfin kämpft als Beifang. Tiefer: ein freier Sardinenschwarm.",
+    scene:'net',
+    abiotic:{label:"Lärm & Desorientierung",text:"Motorengeräusche stören dein Seitenlinienorgan — in Netznähe bist du sensorisch eingeschränkt."},
+    biotic:{label:"Delfine als Signalart",text:"Delfine zeigen den Zustand des Ökosystems. Ihr Rückgang signalisiert ein kollabierendes marines Netz."},
+    options:[
+      {text:"Netz meiden — Sardinenschwarm jagen",bio:"Falle umgehen, satt werden, Funktion im Ökosystem erhalten.",q:1},
+      {text:"Thunfisch aus dem Netz reißen",bio:"Hohes Risiko: Im Netz verfangen bedeutet Tod als Beifang.",q:-1},
+      {text:"Zirkelnd in Netznähe bleiben",bio:"Energie verschwendet, nicht satt, unnötig nahe an der Gefahr.",q:0}
+    ],
+    cons:{0:{t:'good',txt:'Du tauchst ab. Stille. Bait Ball. Satt, frei, ungefährdet. Das Meer gehört dir.'},1:{t:'bad',txt:'Das Netz schließt sich. Du kämpfst, erschöpfst dich. Ein Weißer Hai als Beifang.'},2:{t:'neutral',txt:'Zirkelnd, halbherzig. Nicht satt, nicht sicher — knapp am Verhängnis vorbei.'}}
+  }
+];
+
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();}
+
+function stopRaf(){if(raf){cancelAnimationFrame(raf);raf=null;}}
+
+function render(){
+  stopRaf();
+  if(screen==='intro') renderIntro();
+  else if(screen==='bio') renderBio();
+  else if(screen==='game') renderGame();
+  else renderResult();
+}
+
+function renderIntro(){
+  root.innerHTML=`
+<div style="position:relative;overflow:hidden;height:340px;background:#05060e">
+  <canvas id="ic" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;background:linear-gradient(to bottom,transparent 30%,rgba(5,6,14,0.7))">
+    <div class="tag tc" style="margin-bottom:1rem">Meeresbiologie · DnD-Stil · 4 Runden</div>
+    <div class="serif" style="font-size:2.6rem;font-weight:700;color:#ededf0;line-height:1.1;margin-bottom:.3rem">Weißer Hai</div>
+    <div class="serif" style="font-style:italic;font-size:1.1rem;color:var(--cyan);margin-bottom:1.5rem">Apex-Predator im Atlantik</div>
+    <p style="font-size:.85rem;color:var(--text2);max-width:380px;line-height:1.7;margin-bottom:1.75rem">Du bist ein junger Weißer Hai. Lerne biotische und abiotische Faktoren durch Entscheidungen — 4 Runden, jede mit Konsequenz.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button onclick="screen='bio';render()" style="background:var(--cyan);color:#05060e;border:none;border-radius:8px;padding:.7rem 1.75rem;font-family:inherit;font-size:.88rem;font-weight:700;cursor:pointer">Biologie-Briefing lesen</button>
+      <button onclick="screen='game';render()" style="background:transparent;color:var(--text2);border:1px solid var(--bd2);border-radius:8px;padding:.7rem 1.5rem;font-family:inherit;font-size:.85rem;cursor:pointer">Direkt starten →</button>
+    </div>
+  </div>
+</div>`;
+  initIntroCanvas();
+}
+
+function initIntroCanvas(){
+  const c=document.getElementById('ic');
+  if(!c)return;
+  const cx=c.getContext('2d');
+  let W,H,t=0;
+  const bubbles=Array.from({length:35},()=>({x:Math.random()*800,y:Math.random()*340+340,r:Math.random()*3+1,spd:.3+Math.random()*.5,wo:Math.random()*Math.PI*2,wa:Math.random()*8+3,op:.15+Math.random()*.25}));
+  const pts=Array.from({length:20},()=>({x:Math.random()*800,y:Math.random()*340,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.2,r:.4+Math.random()*.9,p:Math.random()*6}));
+  const sharks2=[
+    {x:-60,y:120,sc:58,dir:1,spd:.5,al:.93,wt:0,wf:.016,wa:9,wy:0},
+    {x:700,y:230,sc:28,dir:-1,spd:.32,al:.4,wt:2,wf:.018,wa:7,wy:0},
+    {x:350,y:260,sc:16,dir:1,spd:.2,al:.22,wt:4,wf:.02,wa:5,wy:0},
+  ];
+  function rsz(){const r=c.getBoundingClientRect();const dpr=Math.min(devicePixelRatio,2);c.width=r.width*dpr;c.height=r.height*dpr;cx.scale(dpr,dpr);W=r.width;H=r.height;}
+  rsz();
+  function drawShark(cx,s){
+    cx.save();cx.translate(s.x,s.y+s.wy);if(s.dir<0)cx.scale(-1,1);cx.globalAlpha=s.al;
+    const sc=s.sc,tp=Math.sin(s.wt*2.1);
+    cx.beginPath();cx.moveTo(-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.5,-sc*.35,0,0);cx.quadraticCurveTo(-sc*.5,sc*.35,-sc*1.05,sc*.2+tp*sc*.16);cx.closePath();cx.fillStyle='rgba(92,224,192,0.06)';cx.strokeStyle='rgba(92,224,192,0.15)';cx.lineWidth=.5;cx.fill();cx.stroke();
+    cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(10,14,28,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.3)';cx.lineWidth=.9;cx.stroke();
+    cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.24)';cx.lineWidth=.7;cx.stroke();
+    cx.beginPath();cx.moveTo(-sc*.18,sc*.17);cx.lineTo(-sc*.05,sc*.46);cx.lineTo(sc*.14,sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.16)';cx.lineWidth=.6;cx.stroke();
+    cx.beginPath();cx.moveTo(sc*.6,-sc*.04);cx.lineTo(sc*.88,sc*.27);cx.lineTo(sc*.52,sc*.1);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.13)';cx.lineWidth=.6;cx.stroke();
+    cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.6)';cx.fill();
+    cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.022,0,Math.PI*2);cx.fillStyle='rgba(5,8,20,1)';cx.fill();
+    cx.restore();
+  }
+  function drawBioLabels(cx,s){
+    if(s.sc<50)return;
+    cx.save();cx.translate(s.x,s.y+s.wy);if(s.dir<0)cx.scale(-1,1);cx.globalAlpha=.7;
+    const lbls=[
+      {tx:62,ty:-68,lx:s.sc*.95,ly:-s.sc*.05,txt:'Lorenzini-Ampullen',sub:'Elektrosinn'},
+      {tx:10,ty:62,lx:-s.sc*.1,ly:s.sc*.18,txt:'Seitenlinie',sub:'Druckwellen'},
+      {tx:38,ty:-82,lx:s.sc*.38,ly:-s.sc*.58,txt:'Dorsalflosse',sub:'Stabilität'},
+    ];
+    lbls.forEach(lb=>{
+      cx.strokeStyle='rgba(92,224,192,0.2)';cx.lineWidth=.5;cx.setLineDash([3,4]);
+      cx.beginPath();cx.moveTo(lb.lx,lb.ly);cx.lineTo(lb.tx,lb.ty);cx.stroke();cx.setLineDash([]);
+      cx.font='600 10px Space Grotesk,sans-serif';
+      const tw=cx.measureText(lb.txt).width+14;
+      cx.fillStyle='rgba(5,8,18,0.8)';rr(cx,lb.tx-tw/2,lb.ty-2,tw,28,4);cx.fill();
+      cx.strokeStyle='rgba(92,224,192,0.18)';cx.lineWidth=.5;cx.stroke();
+      cx.fillStyle='rgba(92,224,192,0.85)';cx.textAlign='center';cx.fillText(lb.txt,lb.tx,lb.ty+8);
+      cx.fillStyle='rgba(92,224,192,0.38)';cx.font='400 8.5px Space Grotesk,sans-serif';cx.fillText(lb.sub,lb.tx,lb.ty+20);
+    });
+    cx.restore();
+  }
+  function loop(){
+    cx.clearRect(0,0,W,H);
+    for(let d=0;d<5;d++){const y=H*.1+d*H*.2;cx.strokeStyle=`rgba(92,224,192,${.02+d*.012})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/55)+t*.35+d*.9)*2.5+Math.sin((x/22)+t*.6+d)*1.2;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+    bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.8)*b.wa*.012;if(b.y<-10)b.y=H+10;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(92,224,192,${b.op})`;cx.lineWidth=.8;cx.stroke();cx.fillStyle=`rgba(92,224,192,${b.op*.3})`;cx.fill();});
+    pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.016;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;cx.beginPath();cx.arc(p.x,p.y,p.r,0,Math.PI*2);cx.fillStyle=`rgba(92,224,192,${.2+Math.sin(p.p)*.1})`;cx.fill();});
+    pts.forEach((p,i)=>{for(let j=i+1;j<pts.length;j++){const q=pts[j],d=Math.hypot(p.x-q.x,p.y-q.y);if(d<85){cx.strokeStyle=`rgba(92,224,192,${(1-d/85)*.055})`;cx.lineWidth=.4;cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(q.x,q.y);cx.stroke();}}});
+    sharks2.forEach(s=>{s.wt+=s.wf;s.wy=Math.sin(s.wt)*s.wa;s.x+=s.spd*s.dir;if(s.dir>0&&s.x>W+160)s.x=-160;if(s.dir<0&&s.x<-160)s.x=W+160;drawShark(cx,s);});
+    drawBioLabels(cx,sharks2[0]);
+    t+=.011;raf=requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function renderBio(){
+  root.innerHTML=`
+<div style="position:relative;overflow:hidden;height:220px;background:#05060e;border-bottom:1px solid var(--bd)">
+  <canvas id="bc" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:1.25rem 1.5rem;background:linear-gradient(to top,rgba(5,6,14,0.9) 0%,transparent 55%)">
+    <div class="tag tc" style="margin-bottom:.5rem;width:fit-content">Klasse 12 · Ökologie</div>
+    <div class="serif" style="font-size:1.6rem;font-weight:700;color:#ededf0">Weißer Hai — Biologie-Briefing</div>
+    <div class="serif" style="font-style:italic;font-size:.9rem;color:var(--cyan)">Was du für das Spiel wissen musst</div>
+  </div>
+</div>
+<div style="padding:1.25rem 1.25rem .5rem">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:1rem">
+    <div style="background:var(--bg3);border:1px solid rgba(92,224,192,0.15);border-radius:var(--r);padding:1rem 1.1rem">
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:.6rem"><div class="tag tc">Abiotisch</div><span style="font-size:.75rem;color:var(--text3)">Unbelebte Umwelt</span></div>
+      <p style="font-size:.8rem;color:var(--text2);line-height:1.65;margin-bottom:.65rem">Physikalisch-chemische Einflüsse wie <span style="color:var(--text)">Temperatur, Licht, Salzgehalt und Druck</span> bestimmen, wo ein Tier lebt und wie effizient es Energie umsetzt.</p>
+      <div style="background:var(--bg4);border-radius:6px;padding:.55rem .8rem;border-left:2px solid var(--cyan);margin-bottom:5px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px">Temperatur &amp; Mesothermie</div>
+        <p style="font-size:.76rem;color:var(--text2);line-height:1.55">Weiße Haie sind mesotherm — sie halten ihre Körpertemperatur über der des Wassers. Bei 24°C steigt ihr Energiebedarf deutlich, während Beute in kühlere Schichten ausweicht.</p>
+      </div>
+      <div style="background:var(--bg4);border-radius:6px;padding:.55rem .8rem;border-left:2px solid rgba(92,224,192,0.35)">
+        <div style="font-size:.68rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px">Licht &amp; Sensorwechsel</div>
+        <p style="font-size:.76rem;color:var(--text2);line-height:1.55">In dunklen Tiefen übernehmen Lorenzini-Ampullen (Elektrosinn) und die Seitenlinie (Druckwellen) die Jagdführung — Licht als Faktor fällt weg.</p>
+      </div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid rgba(251,191,36,0.15);border-radius:var(--r);padding:1rem 1.1rem">
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:.6rem"><div class="tag ta">Biotisch</div><span style="font-size:.75rem;color:var(--text3)">Belebte Umwelt</span></div>
+      <p style="font-size:.8rem;color:var(--text2);line-height:1.65;margin-bottom:.65rem">Wechselwirkungen zwischen Lebewesen: <span style="color:var(--text)">Prädation, Konkurrenz und Symbiose</span>. Sie strukturieren Nahrungsnetze und regulieren Populationen.</p>
+      <div style="background:var(--bg4);border-radius:6px;padding:.55rem .8rem;border-left:2px solid var(--amber);margin-bottom:5px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px">Apex-Prädation &amp; Selektion</div>
+        <p style="font-size:.76rem;color:var(--text2);line-height:1.55">Weiße Haie jagen bevorzugt geschwächte Tiere — natürliche Selektion, die den Genpool der Beutearten stärkt und Überpopulation verhindert.</p>
+      </div>
+      <div style="background:var(--bg4);border-radius:6px;padding:.55rem .8rem;border-left:2px solid rgba(251,191,36,0.35)">
+        <div style="font-size:.68rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px">Mutualismus: Putzerfische</div>
+        <p style="font-size:.76rem;color:var(--text2);line-height:1.55">Putzerfische entfernen Parasiten und Bakterien. Beide Arten profitieren — klassischer obligater Mutualismus als interspezifische Kooperation.</p>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:var(--r);padding:.9rem 1.1rem;margin-bottom:1rem">
+    <div style="font-size:.68rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem">Ökologischer Zusammenhang im Spiel</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="text-align:center;padding:.5rem .4rem">
+        <div style="font-size:.72rem;font-weight:600;color:var(--cyan);margin-bottom:3px">Trophische Kaskade</div>
+        <p style="font-size:.72rem;color:var(--text2);line-height:1.5">Fällt der Apex-Predator weg, kollabiert das Nahrungsnetz von oben nach unten.</p>
+      </div>
+      <div style="text-align:center;padding:.5rem .4rem;border-left:1px solid var(--bd);border-right:1px solid var(--bd)">
+        <div style="font-size:.72rem;font-weight:600;color:var(--amber);margin-bottom:3px">Energie &amp; Faktorwechsel</div>
+        <p style="font-size:.72rem;color:var(--text2);line-height:1.5">Abiotische Faktoren steuern Energieverbrauch — schlechte Entscheidungen kosten Überlebensenergie.</p>
+      </div>
+      <div style="text-align:center;padding:.5rem .4rem">
+        <div style="font-size:.72rem;font-weight:600;color:var(--green);margin-bottom:3px">Symbiose &amp; Fitness</div>
+        <p style="font-size:.72rem;color:var(--text2);line-height:1.5">Mutualismus steigert biologische Fitness — das Ignorieren von Symbiosen hat messbare Kosten.</p>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:var(--r);padding:.875rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.75rem;color:var(--text3);margin-right:2px">Scoring:</span>
+      <span class="tag tg" style="font-size:10px">Richtig +10%</span>
+      <span class="tag ta" style="font-size:10px">Suboptimal −10%</span>
+      <span class="tag tr" style="font-size:10px">Falsch −30%</span>
+      <span class="tag tc" style="font-size:10px">Start 100% · ≥70% Sieg</span>
+    </div>
+    <button onclick="screen='game';render()" style="background:var(--cyan);color:#05060e;border:none;border-radius:8px;padding:.65rem 1.5rem;font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer;flex-shrink:0">Spiel starten →</button>
+  </div>
+</div>`;
+  initBioCanvas();
+}
+
+function initBioCanvas(){
+  const c=document.getElementById('bc');if(!c)return;
+  const cx=c.getContext('2d');let W,H,t=0;
+  const bubbles=Array.from({length:22},()=>({x:Math.random()*800,y:Math.random()*220+220,r:.8+Math.random()*2.2,spd:.25+Math.random()*.4,wo:Math.random()*6.28,op:.12+Math.random()*.2}));
+  const s={x:-50,y:95,dir:1,spd:.45,sc:46,wt:0,wf:.017,wa:8,wy:0};
+  const s2={x:700,y:160,dir:-1,spd:.28,sc:22,wt:3,wf:.019,wa:6,wy:0};
+  function rsz(){const r=c.getBoundingClientRect();const dpr=Math.min(devicePixelRatio,2);c.width=r.width*dpr;c.height=r.height*dpr;cx.scale(dpr,dpr);W=r.width;H=r.height;}
+  rsz();
+  function dSh(cx,sh,lbl){
+    cx.save();cx.translate(sh.x,sh.y+sh.wy);if(sh.dir<0)cx.scale(-1,1);cx.globalAlpha=sh.dir>0?.88:.38;
+    const sc=sh.sc,tp=Math.sin(sh.wt*2.1);
+    cx.beginPath();cx.moveTo(-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.5,-sc*.35,0,0);cx.quadraticCurveTo(-sc*.5,sc*.35,-sc*1.05,sc*.2+tp*sc*.16);cx.closePath();cx.fillStyle='rgba(92,224,192,0.06)';cx.strokeStyle='rgba(92,224,192,0.15)';cx.lineWidth=.5;cx.fill();cx.stroke();
+    cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(10,14,28,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.3)';cx.lineWidth=.85;cx.stroke();
+    cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.22)';cx.lineWidth=.7;cx.stroke();
+    cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.55)';cx.fill();
+    cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.022,0,Math.PI*2);cx.fillStyle='rgba(5,8,20,1)';cx.fill();
+    if(lbl){
+      cx.globalAlpha=.65;
+      const L=[{tx:64,ty:-58,lx:sc*.95,ly:-sc*.05,t:'Lorenzini',s:'Elektrosinn'},{tx:4,ty:54,lx:0,ly:sc*.17,t:'Seitenlinie',s:'Druckwellen'},{tx:40,ty:-72,lx:sc*.38,ly:-sc*.58,t:'Dorsalflosse',s:'Stabilität'}];
+      L.forEach(lb=>{
+        cx.strokeStyle='rgba(92,224,192,0.18)';cx.lineWidth=.5;cx.setLineDash([3,4]);
+        cx.beginPath();cx.moveTo(lb.lx,lb.ly);cx.lineTo(lb.tx,lb.ty);cx.stroke();cx.setLineDash([]);
+        cx.font='600 9.5px Space Grotesk,sans-serif';const tw=cx.measureText(lb.t).width+12;
+        cx.fillStyle='rgba(4,6,16,0.82)';rr(cx,lb.tx-tw/2,lb.ty-1,tw,26,4);cx.fill();
+        cx.strokeStyle='rgba(92,224,192,0.16)';cx.lineWidth=.5;cx.stroke();
+        cx.fillStyle='rgba(92,224,192,0.82)';cx.textAlign='center';cx.fillText(lb.t,lb.tx,lb.ty+7.5);
+        cx.fillStyle='rgba(92,224,192,0.35)';cx.font='400 8px Space Grotesk,sans-serif';cx.fillText(lb.s,lb.tx,lb.ty+18);
+      });
+    }
+    cx.restore();
+  }
+  function loop(){
+    cx.clearRect(0,0,W,H);
+    for(let d=0;d<4;d++){const y=H*.1+d*H*.25;cx.strokeStyle=`rgba(92,224,192,${.018+d*.01})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/50)+t*.35+d*.9)*2+Math.sin((x/20)+t*.6+d)*1;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+    bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.8)*.4;if(b.y<-8)b.y=H+8;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(92,224,192,${b.op})`;cx.lineWidth=.7;cx.stroke();cx.fillStyle=`rgba(92,224,192,${b.op*.25})`;cx.fill();});
+    s.wt+=s.wf;s.wy=Math.sin(s.wt)*s.wa;s.x+=s.spd;if(s.x>W+130)s.x=-130;dSh(cx,s,true);
+    s2.wt+=s2.wf;s2.wy=Math.sin(s2.wt)*s2.wa;s2.x-=s2.spd;if(s2.x<-130)s2.x=W+130;dSh(cx,s2,false);
+    t+=.011;raf=requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function drawSceneCanvas(sceneId, type){
+  const c=document.getElementById(sceneId);if(!c)return;
+  const cx=c.getContext('2d');
+  const rect=c.getBoundingClientRect();
+  const dpr=Math.min(devicePixelRatio,2);
+  c.width=rect.width*dpr;c.height=rect.height*dpr;
+  cx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;
+  let t=0;
+  const bubbles=Array.from({length:18},()=>({x:Math.random()*W,y:Math.random()*H+H,r:.6+Math.random()*1.8,spd:.2+Math.random()*.35,wo:Math.random()*6.28,op:.1+Math.random()*.18}));
+
+  const scenes={
+    warm_injured:function(cx,t){
+      cx.clearRect(0,0,W,H);
+      for(let d=0;d<3;d++){const y=H*.08+d*H*.3;cx.strokeStyle=`rgba(255,150,80,${.015+d*.008})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/45)+t*.4+d)*2;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+      bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.7)*.35;if(b.y<-6)b.y=H+6;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(255,200,120,${b.op})`;cx.lineWidth=.6;cx.stroke();});
+      const hx=W*.42,hy=H*.48,sc=28,tp=Math.sin(t*2.1);
+      cx.save();cx.translate(hx,hy);
+      cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(10,14,28,0.9)';cx.fill();cx.strokeStyle='rgba(200,120,80,0.6)';cx.lineWidth=1;cx.stroke();
+      cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(200,120,80,0.4)';cx.lineWidth=.7;cx.stroke();
+      cx.strokeStyle='rgba(255,100,100,0.7)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(-sc*.3,sc*.05);cx.quadraticCurveTo(-sc*.1,sc*.15,-sc*.05,sc*.08);cx.stroke();
+      cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.55)';cx.fill();cx.restore();
+      const fishCols=['rgba(100,220,180,0.8)','rgba(120,200,240,0.7)','rgba(180,220,100,0.7)'];
+      const fishX=W*.68,fishY=H*.52;
+      for(let i=0;i<3;i++){
+        const fx=fishX+Math.sin(t*1.2+i*2.1)*6,fy=fishY+i*12+Math.cos(t+i)*4;
+        cx.save();cx.translate(fx,fy);
+        cx.beginPath();cx.ellipse(0,0,7,3,0,0,Math.PI*2);cx.fillStyle=fishCols[i%3];cx.fill();
+        cx.beginPath();cx.moveTo(-7,0);cx.lineTo(-12,-4);cx.lineTo(-12,4);cx.closePath();cx.fillStyle=fishCols[i%3];cx.fill();
+        cx.restore();
+      }
+      cx.fillStyle='rgba(255,150,60,0.06)';cx.fillRect(0,0,W,H);
+      cx.fillStyle='rgba(251,191,36,0.65)';cx.font='700 9px Space Grotesk,sans-serif';cx.textAlign='left';cx.fillText('24°C',6,14);
+      cx.fillStyle='rgba(255,100,100,0.65)';cx.fillText('Verletzt',6,26);
+    },
+    hunt:function(cx,t){
+      cx.clearRect(0,0,W,H);
+      for(let d=0;d<3;d++){const y=H*.08+d*H*.3;cx.strokeStyle=`rgba(92,180,224,${.018+d*.009})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/48)+t*.38+d)*2.2;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+      bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.7)*.35;if(b.y<-6)b.y=H+6;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(92,180,224,${b.op})`;cx.lineWidth=.6;cx.stroke();});
+      const hx=W*.38,hy=H*.5,sc=26,tp=Math.sin(t*2.1);
+      cx.save();cx.translate(hx,hy);
+      cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(10,14,28,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.32)';cx.lineWidth=.9;cx.stroke();
+      cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.22)';cx.lineWidth=.7;cx.stroke();
+      cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.55)';cx.fill();cx.restore();
+      const seX=W*.72,seY=H*.42+Math.sin(t*.6)*5;
+      cx.save();cx.translate(seX,seY);
+      cx.beginPath();cx.ellipse(0,0,14,8,-.2,0,Math.PI*2);cx.fillStyle='rgba(120,180,220,0.5)';cx.strokeStyle='rgba(140,200,240,0.6)';cx.lineWidth=.8;cx.fill();cx.stroke();
+      cx.beginPath();cx.ellipse(-10,0,5,10,.3,0,Math.PI*2);cx.fillStyle='rgba(100,160,200,0.4)';cx.fill();
+      cx.restore();
+      const wX=W*.15,wY=H*.3+Math.sin(t*.3)*3;
+      cx.save();cx.translate(wX,wY);cx.scale(.6,.6);
+      cx.beginPath();cx.ellipse(0,0,32,14,0,0,Math.PI*2);cx.fillStyle='rgba(60,80,160,0.35)';cx.strokeStyle='rgba(80,100,200,0.3)';cx.lineWidth=.8;cx.fill();cx.stroke();
+      cx.beginPath();cx.moveTo(-32,0);cx.quadraticCurveTo(-40,-18,-28,-12);cx.quadraticCurveTo(-36,-6,-32,0);cx.fillStyle='rgba(60,80,160,0.3)';cx.fill();cx.restore();
+      cx.fillStyle='rgba(92,224,192,0.6)';cx.font='700 9px Space Grotesk,sans-serif';cx.textAlign='left';cx.fillText('19°C',6,14);
+      cx.fillStyle='rgba(160,160,180,0.5)';cx.fillText('30m Tiefe',6,26);
+    },
+    night:function(cx,t){
+      cx.clearRect(0,0,W,H);
+      cx.fillStyle='rgba(4,5,12,0.5)';cx.fillRect(0,0,W,H);
+      for(let d=0;d<3;d++){const y=H*.08+d*H*.3;cx.strokeStyle=`rgba(80,80,120,${.012+d*.006})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/45)+t*.35+d)*1.8;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+      bubbles.forEach(b=>{b.y-=b.spd*.7;b.x+=Math.sin(b.wo+t*.5)*.3;if(b.y<-6)b.y=H+6;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(120,120,200,${b.op*.7})`;cx.lineWidth=.6;cx.stroke();});
+      const hx=W*.4,hy=H*.5,sc=26,tp=Math.sin(t*2.1);
+      cx.save();cx.translate(hx,hy);
+      cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(8,10,22,0.95)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.28)';cx.lineWidth=.9;cx.stroke();
+      cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(6,8,18,0.95)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.2)';cx.lineWidth=.7;cx.stroke();
+      cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.7)';cx.fill();
+      for(let i=0;i<5;i++){const a=i*(Math.PI*2/5)+t*.5;const r=sc*.9+Math.sin(t*3+i)*4;cx.strokeStyle=`rgba(92,224,192,${.12+Math.sin(t*2+i)*.06})`;cx.lineWidth=.5;cx.beginPath();cx.moveTo(0,0);cx.lineTo(Math.cos(a)*r,Math.sin(a)*r);cx.stroke();}
+      cx.restore();
+      const mX=W*.72,mY=H*.4+Math.sin(t*.8)*4;
+      cx.save();cx.translate(mX,mY);cx.rotate(Math.sin(t*.5)*.1);
+      cx.beginPath();cx.ellipse(0,0,9,3.5,0,0,Math.PI*2);cx.fillStyle='rgba(100,180,140,0.45)';cx.strokeStyle='rgba(120,200,160,0.4)';cx.lineWidth=.7;cx.fill();cx.stroke();
+      cx.beginPath();cx.moveTo(-9,0);cx.lineTo(-13,-3);cx.lineTo(-13,3);cx.closePath();cx.fillStyle='rgba(100,180,140,0.4)';cx.fill();cx.restore();
+      const tX=W*.18,tY=H*.25+Math.sin(t*.4)*3;
+      cx.save();cx.translate(tX,tY);
+      cx.beginPath();cx.ellipse(0,0,11,8,.1,0,Math.PI*2);cx.fillStyle='rgba(80,120,80,0.4)';cx.strokeStyle='rgba(100,160,100,0.35)';cx.lineWidth=.7;cx.fill();cx.stroke();cx.restore();
+      cx.fillStyle='rgba(167,139,250,0.65)';cx.font='700 9px Space Grotesk,sans-serif';cx.textAlign='left';cx.fillText('Nacht',6,14);
+      cx.fillStyle='rgba(92,224,192,0.5)';cx.fillText('Elektrosinn aktiv',6,26);
+    },
+    net:function(cx,t){
+      cx.clearRect(0,0,W,H);
+      for(let d=0;d<3;d++){const y=H*.08+d*H*.3;cx.strokeStyle=`rgba(92,180,160,${.016+d*.008})`;cx.lineWidth=.5;cx.beginPath();for(let x=0;x<=W;x+=4){const w=Math.sin((x/48)+t*.38+d)*2;x===0?cx.moveTo(x,y+w):cx.lineTo(x,y+w);}cx.stroke();}
+      bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.7)*.35;if(b.y<-6)b.y=H+6;cx.beginPath();cx.arc(b.x,b.y,b.r,0,Math.PI*2);cx.strokeStyle=`rgba(92,180,160,${b.op})`;cx.lineWidth=.6;cx.stroke();});
+      const nW=50,nH=55,nX=W*.62,nY=H*.12;
+      for(let xi=0;xi<=4;xi++){const x=nX+xi*(nW/4);cx.strokeStyle='rgba(180,160,100,0.35)';cx.lineWidth=.6;cx.beginPath();cx.moveTo(x,nY);cx.lineTo(x+Math.sin(t*.5+xi)*.5,nY+nH);cx.stroke();}
+      for(let yi=0;yi<=5;yi++){const y=nY+yi*(nH/5);cx.beginPath();cx.moveTo(nX,y);cx.lineTo(nX+nW,y+Math.sin(t*.4+yi)*.5);cx.stroke();}
+      const thX=nX+nW*.55+Math.sin(t*3)*2,thY=nY+nH*.45+Math.cos(t*2.5)*1.5;
+      cx.save();cx.translate(thX,thY);cx.rotate(Math.sin(t*2)*.15);
+      cx.beginPath();cx.ellipse(0,0,9,4,.3,0,Math.PI*2);cx.fillStyle='rgba(60,120,200,0.55)';cx.strokeStyle='rgba(80,150,230,0.5)';cx.lineWidth=.7;cx.fill();cx.stroke();cx.restore();
+      const hx=W*.32,hy=H*.52,sc=24,tp=Math.sin(t*2.1);
+      cx.save();cx.translate(hx,hy);
+      cx.beginPath();cx.moveTo(sc*1.05,0);cx.quadraticCurveTo(sc*.55,-sc*.08,0,-sc*.17);cx.quadraticCurveTo(-sc*.45,-sc*.22,-sc*1.05,-sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.65,0,-sc*1.05,sc*.2+tp*sc*.16);cx.quadraticCurveTo(-sc*.45,sc*.22,0,sc*.17);cx.quadraticCurveTo(sc*.55,sc*.08,sc*1.05,0);cx.closePath();cx.fillStyle='rgba(10,14,28,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.3)';cx.lineWidth=.9;cx.stroke();
+      cx.beginPath();cx.moveTo(sc*.08,-sc*.17);cx.lineTo(sc*.38,-sc*.6);cx.lineTo(sc*.58,-sc*.19);cx.closePath();cx.fillStyle='rgba(8,12,24,0.9)';cx.fill();cx.strokeStyle='rgba(92,224,192,0.2)';cx.lineWidth=.7;cx.stroke();
+      cx.beginPath();cx.arc(sc*.8,-sc*.055,sc*.055,0,Math.PI*2);cx.fillStyle='rgba(92,224,192,0.55)';cx.fill();cx.restore();
+      for(let i=0;i<5;i++){const a=i*(Math.PI*2/5)+t*.8;const sx=W*.2+Math.cos(a)*22+Math.sin(t+i)*4,sy=H*.68+Math.sin(a)*8+Math.cos(t*.7+i)*3;cx.beginPath();cx.arc(sx,sy,2.2,0,Math.PI*2);cx.fillStyle='rgba(180,220,200,0.5)';cx.fill();}
+      cx.strokeStyle='rgba(180,160,100,0.25)';cx.lineWidth=.5;cx.beginPath();cx.moveTo(nX+nW*.3,0);cx.lineTo(nX+nW*.3,nY);cx.moveTo(nX+nW*.7,0);cx.lineTo(nX+nW*.7,nY);cx.stroke();
+      cx.fillStyle='rgba(255,107,107,0.6)';cx.font='700 9px Space Grotesk,sans-serif';cx.textAlign='left';cx.fillText('Fischerboot',6,14);
+      cx.fillStyle='rgba(180,160,100,0.55)';cx.fillText('Netz gefährlich',6,26);
+    }
+  };
+  function loop(){scenes[type](cx,t);bubbles.forEach(b=>{b.y-=b.spd;b.x+=Math.sin(b.wo+t*.7)*.35;if(b.y<-6)b.y=H+6;});t+=.011;raf=requestAnimationFrame(loop);}
+  loop();
+}
+
+function renderGame(){
+  const r=ROUNDS[round];
+  const pct=Math.max(0,score);
+  const fc=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
+  const dots=Array.from({length:4},(_,i)=>{const a=i<round?'var(--cyan)':i===round?'var(--amber)':'var(--bg4)';const b=i<round?'var(--cyan)':i===round?'var(--amber)':'var(--bd)';return `<div style="width:7px;height:7px;border-radius:50%;background:${a};border:1px solid ${b};transition:all .3s"></div>`;}).join('');
+  root.innerHTML=`
+<div class="fade">
+  <div style="position:relative;overflow:hidden;height:130px;background:#05060e;border-bottom:1px solid var(--bd)">
+    <canvas id="sc" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:.875rem 1.1rem;background:linear-gradient(to top,rgba(5,6,14,0.85) 0%,transparent 50%)">
+      <div class="tag ${round===0?'ta':round===1?'tc':round===2?'tp':round===3?'tr':'tc'}" style="margin-bottom:.3rem;width:fit-content;font-size:9.5px">Runde ${round+1} von 4</div>
+      <div class="serif" style="font-size:1.05rem;font-weight:700;color:var(--text)">${r.title}</div>
+    </div>
+    <div style="position:absolute;top:.75rem;right:.875rem;display:flex;align-items:center;gap:8px">
+      <div style="display:flex;gap:4px">${dots}</div>
+      <div style="width:70px;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${fc};border-radius:2px;transition:width .5s ease"></div></div>
+      <span style="font-size:.78rem;font-weight:600;color:${fc}">${pct}%</span>
+    </div>
+  </div>
+  <div style="padding:1rem 1.1rem">
+    <p style="font-size:.83rem;color:var(--text2);line-height:1.7;margin-bottom:.875rem">${r.situation}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:.875rem">
+      <div style="background:var(--bg3);border:1px solid rgba(92,224,192,0.14);border-radius:8px;padding:.65rem .875rem">
+        <div style="font-size:.62rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Abiotisch</div>
+        <div style="font-size:.75rem;font-weight:600;color:var(--text);margin-bottom:2px">${r.abiotic.label}</div>
+        <div style="font-size:.73rem;color:var(--text3);line-height:1.5">${r.abiotic.text}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid rgba(251,191,36,0.14);border-radius:8px;padding:.65rem .875rem">
+        <div style="font-size:.62rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Biotisch</div>
+        <div style="font-size:.75rem;font-weight:600;color:var(--text);margin-bottom:2px">${r.biotic.label}</div>
+        <div style="font-size:.73rem;color:var(--text3);line-height:1.5">${r.biotic.text}</div>
+      </div>
+    </div>
+    <div style="font-size:.62rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Deine Entscheidung</div>
+    <div id="opts"></div>
+    <div id="cons"></div>
+  </div>
+</div>`;
+  setTimeout(()=>drawSceneCanvas('sc',r.scene),30);
+  r.options.forEach((o,i)=>{
+    const btn=document.createElement('button');
+    btn.id='opt'+i;
+    btn.style.cssText='width:100%;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:.75rem 1rem;text-align:left;cursor:pointer;margin-bottom:6px;font-family:inherit;transition:all .2s;display:block';
+    btn.innerHTML=`<div style="font-size:.62rem;font-weight:700;color:var(--cyan);letter-spacing:.07em;margin-bottom:2px">OPTION ${String.fromCharCode(65+i)}</div><div style="font-size:.83rem;color:var(--text);margin-bottom:2px">${o.text}</div><div style="font-size:.73rem;color:var(--text3);font-style:italic">${o.bio}</div>`;
+    btn.onmouseover=()=>{if(!answered){btn.style.borderColor='var(--bd2)';btn.style.background='var(--bg4)';}};
+    btn.onmouseout=()=>{if(!answered){btn.style.borderColor='var(--bd)';btn.style.background='var(--bg3)';}};
+    btn.onclick=()=>choose(i);
+    document.getElementById('opts').appendChild(btn);
+  });
+}
+
+function choose(idx){
+  if(answered)return;answered=true;
+  const r=ROUNDS[round];const o=r.options[idx];
+  const delta=o.q===1?10:o.q===-1?-30:-10;
+  score=Math.max(0,Math.min(130,score+delta));
+  history.push({round:round+1,choice:o.text,delta,score});
+  for(let i=0;i<r.options.length;i++){
+    const b=document.getElementById('opt'+i);
+    b.disabled=true;b.style.cursor='default';b.onmouseover=null;b.onmouseout=null;
+    if(i===idx){
+      const q=o.q;
+      b.style.borderColor=q===1?'rgba(74,222,128,.4)':q===-1?'rgba(255,107,107,.35)':'rgba(251,191,36,.35)';
+      b.style.background=q===1?'rgba(74,222,128,.06)':q===-1?'rgba(255,107,107,.06)':'rgba(251,191,36,.06)';
+    }
+  }
+  const c=r.cons[idx];
+  const dc=o.q===1?'var(--green)':o.q===-1?'var(--red)':'var(--amber)';
+  const ds=delta>0?'+':'';
+  const lbl=o.q===1?'Richtige Wahl':o.q===-1?'Falsche Wahl':'Suboptimal';
+  const tc=o.q===1?'tg':o.q===-1?'tr':'ta';
+  document.getElementById('cons').innerHTML=`
+<div style="background:var(--bg3);border:1px solid ${o.q===1?'rgba(74,222,128,.2)':o.q===-1?'rgba(255,107,107,.18)':'rgba(251,191,36,.18)'};border-radius:8px;padding:.875rem 1rem;margin-top:2px;animation:fu .3s ease">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:6px">
+    <span class="tag ${tc}">${lbl}</span>
+    <span style="font-size:.8rem;font-weight:700;color:${dc}">${ds}${delta}% → ${Math.max(0,score)}%</span>
+  </div>
+  <p style="font-size:.82rem;color:var(--text2);line-height:1.65">${c.txt}</p>
+</div>
+<button onclick="goNext()" style="width:100%;margin-top:.6rem;background:var(--cyan);color:#05060e;border:none;border-radius:8px;padding:.65rem;font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer;text-align:center">${round<3?'Nächste Runde →':'Ergebnis sehen →'}</button>`;
+}
+
+function goNext(){round++;answered=false;if(round>=4){screen='result';render();}else renderGame();}
+
+function renderResult(){
+  const win=score>=70;
+  const fc=score>=70?'var(--green)':score>=40?'var(--amber)':'var(--red)';
+  const rows=history.map(h=>{const dc=h.delta>0?'var(--green)':h.delta<0?'var(--red)':'var(--amber)';const ds=h.delta>0?'+':'';return`<tr><td style="padding:.5rem .75rem;color:var(--text3);font-size:.75rem">Runde ${h.round}</td><td style="padding:.5rem .75rem;color:var(--text2);font-size:.78rem">${h.choice}</td><td style="padding:.5rem .75rem;text-align:right;font-weight:600;font-size:.8rem;color:${dc}">${ds}${h.delta}%</td><td style="padding:.5rem .75rem;text-align:right;font-size:.8rem;color:var(--text)">${h.score}%</td></tr>`;}).join('');
+  root.innerHTML=`
+<div class="fade" style="padding:1.5rem 1.25rem;text-align:center">
+  <div style="width:60px;height:60px;border-radius:50%;background:${win?'rgba(74,222,128,.1)':'rgba(255,107,107,.09)'};border:1px solid ${win?'rgba(74,222,128,.25)':'rgba(255,107,107,.22)'};display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:.9rem;color:${fc};font-weight:700">${win?'◈':'✕'}</div>
+  <div class="serif" style="font-size:1.7rem;font-weight:700;color:${fc};margin-bottom:.4rem">${win?'Sieg!':'Niederlage.'}</div>
+  <p style="font-size:.82rem;color:var(--text2);max-width:360px;margin:0 auto .75rem;line-height:1.65">${win?'Du hast die Gesetze des Ozeans verstanden. Als Apex-Predator hältst du das Ökosystem in Balance.':'Ein Weißer Hai, der biotische und abiotische Faktoren ignoriert, überlebt nicht. Das Meer ist gnadenlos.'}</p>
+  <div style="font-size:2.4rem;font-weight:700;font-family:'Playfair Display',serif;color:${fc}">${Math.max(0,score)}%</div>
+  <div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:1.25rem">Endpunktzahl</div>
+  <div class="card" style="text-align:left;margin-bottom:1.25rem;overflow:hidden">
+    <div style="padding:.6rem .875rem;border-bottom:1px solid var(--bd)"><span style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)">Rundenauswertung</span></div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--bd)"><th style="padding:.45rem .75rem;text-align:left;font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Runde</th><th style="padding:.45rem .75rem;text-align:left;font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Entscheidung</th><th style="padding:.45rem .75rem;text-align:right;font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Δ</th><th style="padding:.45rem .75rem;text-align:right;font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Score</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <button onclick="round=0;score=100;history=[];answered=false;screen='game';render()" style="background:var(--cyan);color:#05060e;border:none;border-radius:8px;padding:.65rem 1.5rem;font-family:inherit;font-size:.83rem;font-weight:700;cursor:pointer">Nochmal spielen</button>
+    <button onclick="screen='bio';render()" style="background:transparent;color:var(--text2);border:1px solid var(--bd2);border-radius:8px;padding:.65rem 1.25rem;font-family:inherit;font-size:.8rem;cursor:pointer">Briefing nochmal lesen</button>
+  </div>
+</div>`;
+}
+
+render();
+</script>
